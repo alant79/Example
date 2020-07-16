@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <meta charset='utf-8' />
+    <title>Working with Yandex maps</title>
+    <base href='/' />
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <link rel='icon' type='image/x-icon' href='favicon.ico' />
+    <script
+      src='https://api-maps.yandex.ru/2.1/?apikey=4fb7efc0-c3d3-4b8b-9e4b-c02c37aa1bed&lang=ru_RU'
+      type='text/javascript'
+    ></script>
+    <script type='text/javascript'>
+      function addPoints(addresses) {
+        return new Promise (res=> {
+          myPointsCollection = new ymaps.GeoObjectCollection();
+          addresses.forEach(address => {
+          myPointsCollection.add(
+            new ymaps.Placemark(
+              [address.coords[0], address.coords[1]],
+              {
+                id: address.id
+              },
+              {}
+            )
+          );
+        })
+        res(myPointsCollection)})
+      }
+      function addZone(map,zone) {
+        let myPolygon;
+        return new Promise (res=> {
+          if (zone.type == 'POLYGON') {
+            myPolygon = new ymaps.Polygon(
+            [zone.coords]);         
+            map.geoObjects.add(myPolygon, zone.id);
+        } else if (zone.type == 'CIRCLE') {
+            myPolygon = new ymaps.Circle(
+            [zone.coords[0],zone.coords[1]]);
+            map.geoObjects.add(myPolygon, zone.id);
+        }
+        res(myPolygon)})
+      }
+      function linkZones() {
+        return new Promise(res =>{
+          const result = [];
+          let map = new ymaps.Map('map', {
+            center: [59.939095, 30.315868],
+            zoom: 10
+          });
+          map.behaviors.enable('scrollZoom');
+          map.behaviors.disable('dblClickZoom');
+          const clusterer = new ymaps.Clusterer({
+            clusterDisableClickZoom: true,
+            synchAdd: true
+          });
+          map.geoObjects.add(clusterer);
+
+          addresses = eval(document.querySelector('.addresses').innerHTML);
+          zones = eval(document.querySelector('.zones').innerHTML);
+          addPoints(addresses).then(myPointsCollection => {
+              zones.forEach(zone => {
+                addZone(map,zone).then(myPolygon =>{
+                  myPointsCollection.each(point=> {
+                  let id = point.properties.get('id');
+                  if (myPolygon.geometry.contains(point.geometry.getCoordinates())) {
+                    if (!result.filter(el=> el.id == id).length) {
+                      result.push({
+                      id,
+                      zone_id: zone.id
+                    })
+                    }                 
+                  };
+              })   
+            })
+          })
+          res(result);
+        })      
+        })
+    }
+    </script>
+  </head>
+  <body>
+    <!-- <div class="zones">[{'id':'1','type':'POLYGON','coords':[[60.071816,30.292474],[60.043844,30.472548],[60.005177,30.338023],[60.071816,30.292474]]},{'id':'2','type':'CIRCLE','coords':[[59.987187,30.359123],5000]}]</div> -->
+    <!-- <div class="addresses">[{'id':'1','coords':[60.066046,30.305192]},{'id':'2','coords':[60.040672,30.414109]},{'id':'3','coords':[60.027979,30.354764]},{'id':'4','coords':[59.986513,30.355693]}]</div> -->
+    <div class='addresses'></div>
+    <div class='zones'></div>
+    <div class='result'></div>  
+  <button class='btn' onclick="linkZones().then(result => {document.querySelector('.result').innerHTML = JSON.stringify(result)})"></button>
+    <div id='map'></div>
+  </body>
+</html>
